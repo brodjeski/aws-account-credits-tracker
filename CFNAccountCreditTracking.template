@@ -10,7 +10,7 @@
     "SNSNotificationEmail": {
       "Type": "String",
       "Description": "Email address for utilization threshold alert notification",
-      "Default": "abrodjeski@deloitte.com"
+      "Default": ""
     },
     "CreditsTableName" : {
       "Type" : "String",
@@ -37,20 +37,10 @@
       "Description" : "Number of credits",
       "Default" : "300.0"
     },
-    "CreditAccumulated" : {
-      "Type" : "Number",
-      "Description" : "Credits used in previous full months",
-      "Default" : 0
-    },
-    "CreditCurrent" : {
-      "Type" : "Number",
-      "Description" : "Credits used in current month",
-      "Default" : 0.0
-    },
     "AlertThreshold" : {
       "Type" : "Number",
-      "Description" : "Percentage of total credits used to trigger alert. A 0.0 percentage will always send an alert",
-      "Default" : "0.0"
+      "Description" : "Credit amount that triggers notification",
+      "Default" : "300"
     },
     "LambdaEventTriggerRateValue": {
       "Type": "Number",
@@ -65,9 +55,44 @@
     "LambdaEventTriggerCron": {
       "Type": "String",
       "Description": "Cron string to configure event triggering",
-      "Default": "cron(0 16 * * ? *)"
+      "Default": "cron(40 18 * * ? *)"
     }
   },
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+            {
+                "Label": {
+                    "default" : "AWS Credits Table"
+                },
+                "Parameters": ["CreditsTableName",
+                               "CreditsAwardName",
+                               "CreditEffectiveDate",
+                               "CreditExpiry",
+                               "CreditLimit"
+                ]
+            },
+            {
+                "Label" : {
+                    "default" : "Alert Parameters"
+                },
+                "Parameters" : ["AlertThreshold",
+                                "LambdaEventTriggerRateValue",
+                                "LambdaEventTriggerRateUnit",
+                                "LambdaEventTriggerCron"
+                ]
+            },
+            {
+                 "Label" : {
+                     "default": "Notification Parameters"
+                 },
+                 "Parameters" : ["SNSNotificationTopicName",
+                                 "SNSNotificationEmail"
+                 ]
+            }
+        ]       
+    }
+},
   "Resources" : {
     "CreditsTable" : {
       "Type" : "AWS::DynamoDB::Table",
@@ -124,8 +149,6 @@
         "EffectiveDate" : { "Ref" : "CreditEffectiveDate" },
         "ExpiryDate" : { "Ref" : "CreditExpiry"},
         "CreditLimit" : { "Ref" : "CreditLimit" },
-        "AccumulatedCredit" : { "Ref" : "CreditAccumulated"},
-        "CurrentCredit" : { "Ref" : "CreditCurrent"},
         "AlertThreshold" : { "Ref" : "AlertThreshold" },
         "AlertNotificationTopic" : { "Ref" : "AlarmAlertTargetSNS" }
       }
@@ -264,7 +287,6 @@
 "           print( properties['EffectiveDate'] )",
 "           print( properties['ExpiryDate'] )",
 "           print( properties['CreditLimit'] )",
-"           print( properties['AccumulatedCredit'] )",
 "           print( properties['AlertThreshold'] )",
 "           print( properties['AlertNotificationTopic'] )",
       
@@ -275,7 +297,6 @@
 "                                  'credit_start' : { 'S' : properties['EffectiveDate'] },",
 "                                  'credit_expiry' : { 'S' : properties['ExpiryDate'] },",
 "                                  'credit_limit' : {'N' : str( properties['CreditLimit'] )},",
-"                                  'credit_accumulated' : { 'N' : str( properties['AccumulatedCredit'] ) },",
 "                                  'credit_threshold' : { 'N' : str( properties['AlertThreshold'] ) },",
 "                                  'credit_notification_topic' : { 'S' : properties['AlertNotificationTopic'] }",
 "                                         }",
@@ -307,6 +328,31 @@
 "#############################################################################################",                  
 "   elif request_type == 'Update':",
 "# Do nothing ",
+"      try:",
+"          ddb_client = boto3.client( 'dynamodb' )",
+"          print( properties['NameField'] )",
+"          print( properties['EffectiveDate'] )",
+"          print( properties['ExpiryDate'] )",
+"          print( properties['CreditLimit'] )",
+"          print( properties['AlertThreshold'] )",
+"          print( properties['AlertNotificationTopic'] )",
+      
+"          response = ddb_client.put_item( ",
+"                                 TableName=properties['TableName'],",
+"                                 Item = {",
+"                                 'credit_name' : {'S' : properties['NameField'] },",
+"                                 'credit_start' : { 'S' : properties['EffectiveDate'] },",
+"                                 'credit_expiry' : { 'S' : properties['ExpiryDate'] },",
+"                                 'credit_limit' : {'N' : str( properties['CreditLimit'] )},",
+"                                 'credit_threshold' : { 'N' : str( properties['AlertThreshold'] ) },",
+"                                 'credit_notification_topic' : { 'S' : properties['AlertNotificationTopic'] }",
+"                                        }",
+"                                        )",
+"          print( response )",
+"      except ClientError as e:",
+"          print( e )",
+"          responseData['Status'] = 'FAILED'",
+"          responseData['Reason'] = e.response['Error']['Message']",
 "      responseData = {}",
 "      responseData['Status'] = 'SUCCESS'",
 "      responseData['Reason'] = 'SUCCESS'",
@@ -365,7 +411,7 @@
     "Properties" : {
     "Description" : "Lambda function to query Cost Explorer API, sum up credits used and send notification if threshold is reached",
     "Role" : { "Fn::GetAtt" : ["CreditTrackingLambdaRole", "Arn"] },
-    "FunctionName" : "aws_credit_tracker",
+    "FunctionName" : "aws-account-credits-tracking",
     "Handler" : "index.lambda_handler",
     "Runtime" : "python3.8",
     "Environment" : {
@@ -411,10 +457,8 @@
       "  def __init__( self, credit_name ):",
       "    print( 'Building Credit from DynamoDB')",
       "    self.ddb_client = boto3.client( 'dynamodb' )",
-      "    self.credit_current = 0",
       "    self.credit_start = ''",
       "    self.credit_expiry = ''",
-      "    self.credit_accumulated = 0",
       "    self.credit_threshold = 0",
       "    self.credit_limit = 0",
       "    self.credit_notification_topic = ''",
@@ -427,7 +471,6 @@
       "                    AttributesToGet=['credit_start',",
       "                                     'credit_expiry',",
       "                                     'credit_limit',",
-      "                                     'credit_accumulated',",
       "                                     'credit_threshold',",
       "                                     'credit_notification_topic'",
       "                                     ]",
@@ -435,7 +478,6 @@
       "      self.credit_start = response['Item']['credit_start']['S']",
       "      self.credit_expiry = response['Item']['credit_expiry']['S']",
       "      self.credit_limit = float( response['Item']['credit_limit']['N'] )",
-      "      self.credit_accumulated = float( response['Item']['credit_accumulated']['N'] )",
       "      self.credit_threshold = float( response['Item']['credit_threshold']['N'] )",
       "      self.credit_notification_topic = response['Item']['credit_notification_topic']['S']",
       "",      
@@ -446,21 +488,6 @@
       "    else:",
       "        print( response )",
       "###################",    
-      "  def update_credit_current( self, current_credit ):",
-      "    print( 'current credit: ' + current_credit )",
-      "    response = self.ddb_client.update_item(",
-      "                          TableName='aws-credit-status',",
-      "                          Key={",
-      "                            'credit_name' : { 'S' :  AWS_CREDITS_NAME }",
-      "                          },",
-      "                          UpdateExpression = \"set credit_current = :c\",",
-      "                          ExpressionAttributeValues={",
-      "                            ':c' : {'N' : current_credit  }",
-      "                          }",
-      "                        )",
-      "    print( response )",
-      "    return response",
-      "#####################",
       "def lambda_handler(event, context):",
       "",
       "  total_cost = 0.0",
@@ -494,9 +521,7 @@
       "  for credit in response['ResultsByTime']:",
       "#    print( credit['Total']['UnblendedCost']['Amount'] )",
       "    total_cost += float( credit['Total']['UnblendedCost']['Amount'] )",
-      "    credit_current = float( credit['Total']['UnblendedCost']['Amount'] )",
       "",  
-      "  response = credit_table.update_credit_current( str( credit_current ) )",
       "",
       "  print( total_cost )",
       "  credit_remaining = credit_table.credit_limit + total_cost",
@@ -504,7 +529,10 @@
       "  print( 'Credit threshold: ' + str( credit_table.credit_threshold ) )",
       "  utilization = total_cost / credit_table.credit_limit * -100.0",
       "",
-      "  if utilization >= credit_table.credit_threshold:",
+      "#  if utilization >= credit_table.credit_threshold:",
+      "#    print( 'Sending utilization alert')",
+      "#    sns_client = boto3.client( 'sns' )",
+      "  if credit_remaining < credit_table.credit_threshold:",
       "    print( 'Sending utilization alert')",
       "    sns_client = boto3.client( 'sns' )",
       "",  
