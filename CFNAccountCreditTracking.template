@@ -1,61 +1,47 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
-  "Description" : "Template to build AWS account credit tracking stack",
+  "Description" : "This template builds an AWS account credit tracking stack with a DynamoDB table, SNS notifications, and a scheduled Lambda function. Customizable parameters include the credit award name, effective and expiry dates, credit amount, and alert threshold.",
   "Parameters" : {
     "SNSNotificationTopicName": {
       "Type": "String",
-      "Description": "SNS Topic to receive alarm notification when utilization threshold is reached",
-      "Default": "aws-credits-status"
+      "Description": "Name of the SNS topic that will be used to send notifications when the utilization threshold is reached.",
+      "Default": "aws-credit-status"
     },
     "SNSNotificationEmail": {
       "Type": "String",
-      "Description": "Email address for utilization threshold alert notification",
-      "Default": ""
+      "Description": "Email address for receiving alerts when the credit balance falls below the utilization threshold."
     },
     "CreditsTableName" : {
       "Type" : "String",
-      "Description" : "Name of DynamoDB table containing credit parameters",
+      "Description" : "Name of the DynamoDB table that will store credit status information.",
       "Default" : "aws-credit-status"
     },
-    "CreditsAwardName" : {
+    "CreditAwardName" : {
        "Type" : "String",
-       "Description" : "Name of credit award",
-       "Default" : "Q2 T&C Promo Credits- 300 Deloitte"
+       "Description" : "Name of the credit award to track."
     },
     "CreditEffectiveDate" : {
       "Type" : "String",
-      "Description" : "Effective date to apply credits",
-      "Default" : "2022-09-01"
+      "Description" : "Date on which the credit award becomes effective. This parameter should be a string in the format 'YYYY-MM-DD'."
     },
     "CreditExpiry" : {
       "Type" : "String",
-      "Description" : "Expiration date to apply credits",
-      "Default" : "2023-01-31"
+      "Description" : "The date on which the credit award expires. This parameter should be a string in the format 'YYYY-MM-DD'."
     },
-    "CreditLimit" : {
+    "CreditAmount" : {
       "Type" : "Number",
-      "Description" : "Number of credits",
-      "Default" : "300.0"
+      "Description" : "Amount of credit awarded.",
+      "Default" : "500.0"
     },
     "AlertThreshold" : {
       "Type" : "Number",
-      "Description" : "Credit amount that triggers notification",
-      "Default" : "300"
-    },
-    "LambdaEventTriggerRateValue": {
-      "Type": "Number",
-      "Description": "A positive number for unit of time between credit Lambda execution runs",
-      "Default": 30
-    },
-    "LambdaEventTriggerRateUnit": {
-      "Type": "String",
-      "Description": "Unit of time for triggering credit Lambda function. (Different units are required for value of 1, e.g., 'minute' instead of 'minutes'",
-      "Default": "minutes"
+      "Description" : "The threshold at which an alert is triggered when the credit balance falls below this amount.",
+      "Default" : "400"
     },
     "LambdaEventTriggerCron": {
       "Type": "String",
-      "Description": "Cron string to configure event triggering",
-      "Default": "cron(40 18 * * ? *)"
+      "Description": "Cron expression for scheduling the Lambda function to be triggered. This parameter should be a valid cron expression that specifies the frequency at which the function should be triggered. The default value is set to trigger the function every day at midnight (12:00am).",
+      "Default": "cron(0 0 * * ? *)"
     }
   },
   "Metadata": {
@@ -66,10 +52,10 @@
                     "default" : "AWS Credits Table"
                 },
                 "Parameters": ["CreditsTableName",
-                               "CreditsAwardName",
+                               "CreditAwardName",
                                "CreditEffectiveDate",
                                "CreditExpiry",
-                               "CreditLimit"
+                               "CreditAmount"
                 ]
             },
             {
@@ -77,8 +63,6 @@
                     "default" : "Alert Parameters"
                 },
                 "Parameters" : ["AlertThreshold",
-                                "LambdaEventTriggerRateValue",
-                                "LambdaEventTriggerRateUnit",
                                 "LambdaEventTriggerCron"
                 ]
             },
@@ -145,10 +129,10 @@
       "Properties" : {
         "TableName" : { "Ref" : "CreditsTableName" },
         "ServiceToken" : { "Fn::GetAtt" : ["CreditsTableLambdaInitializer", "Arn"] },
-        "NameField" : { "Ref" : "CreditsAwardName"},
+        "NameField" : { "Ref" : "CreditAwardName"},
         "EffectiveDate" : { "Ref" : "CreditEffectiveDate" },
         "ExpiryDate" : { "Ref" : "CreditExpiry"},
-        "CreditLimit" : { "Ref" : "CreditLimit" },
+        "CreditAmount" : { "Ref" : "CreditAmount" },
         "AlertThreshold" : { "Ref" : "AlertThreshold" },
         "AlertNotificationTopic" : { "Ref" : "AlarmAlertTargetSNS" }
       }
@@ -286,7 +270,7 @@
 "           print( properties['NameField'] )",
 "           print( properties['EffectiveDate'] )",
 "           print( properties['ExpiryDate'] )",
-"           print( properties['CreditLimit'] )",
+"           print( properties['CreditAmount'] )",
 "           print( properties['AlertThreshold'] )",
 "           print( properties['AlertNotificationTopic'] )",
       
@@ -296,7 +280,7 @@
 "                                  'credit_name' : {'S' : properties['NameField'] },",
 "                                  'credit_start' : { 'S' : properties['EffectiveDate'] },",
 "                                  'credit_expiry' : { 'S' : properties['ExpiryDate'] },",
-"                                  'credit_limit' : {'N' : str( properties['CreditLimit'] )},",
+"                                  'credit_limit' : {'N' : str( properties['CreditAmount'] )},",
 "                                  'credit_threshold' : { 'N' : str( properties['AlertThreshold'] ) },",
 "                                  'credit_notification_topic' : { 'S' : properties['AlertNotificationTopic'] }",
 "                                         }",
@@ -333,7 +317,7 @@
 "          print( properties['NameField'] )",
 "          print( properties['EffectiveDate'] )",
 "          print( properties['ExpiryDate'] )",
-"          print( properties['CreditLimit'] )",
+"          print( properties['CreditAmount'] )",
 "          print( properties['AlertThreshold'] )",
 "          print( properties['AlertNotificationTopic'] )",
       
@@ -343,7 +327,7 @@
 "                                 'credit_name' : {'S' : properties['NameField'] },",
 "                                 'credit_start' : { 'S' : properties['EffectiveDate'] },",
 "                                 'credit_expiry' : { 'S' : properties['ExpiryDate'] },",
-"                                 'credit_limit' : {'N' : str( properties['CreditLimit'] )},",
+"                                 'credit_limit' : {'N' : str( properties['CreditAmount'] )},",
 "                                 'credit_threshold' : { 'N' : str( properties['AlertThreshold'] ) },",
 "                                 'credit_notification_topic' : { 'S' : properties['AlertNotificationTopic'] }",
 "                                        }",
@@ -415,7 +399,9 @@
     "Handler" : "index.lambda_handler",
     "Runtime" : "python3.8",
     "Environment" : {
-       "Variables" : { "AWS_CREDITS_NAME" : { "Ref": "CreditsAwardName"}
+       "Variables" : { 
+        "AWS_CREDITS_NAME" : { "Ref": "CreditAwardName"},
+        "AWS_CREDITS_TABLE_NAME" : { "Ref": "CreditsTableName"}
       }
     },
     "Code" : { "ZipFile" : { "Fn::Join" : ["\n", [
@@ -452,6 +438,7 @@
       "# Global Variables",
       "#",
       "AWS_CREDITS_NAME = os.environ['AWS_CREDITS_NAME']",
+      "AWS_CREDITS_TABLE_NAME = os.environ['AWS_CREDITS_TABLE_NAME']",
       "class Credit:",
       "",
       "  def __init__( self, credit_name ):",
@@ -466,7 +453,7 @@
       "    print( 'Credit Name: ' + credit_name)",
       "    try:",    
       "      response = self.ddb_client.get_item(",
-      "                  TableName='aws-credit-status',",
+      "                  TableName=AWS_CREDITS_TABLE_NAME,",
       "                    Key= { 'credit_name' : { 'S' : credit_name }},",
       "                    AttributesToGet=['credit_start',",
       "                                     'credit_expiry',",
@@ -571,16 +558,20 @@
     "CreditThresholdLambdaTimedTriggerEvent": {
       "Type": "AWS::Events::Rule",
       "Properties": {
-          "Description": "Event that triggers the credit threshold Lambda function",
-          "Name": "aws-account-credits-tracking-trigger",
-          "ScheduleExpression": { "Ref" : "LambdaEventTriggerCron" },
-          "State": "ENABLED",
-          "Targets": [
-              {
-                  "Arn": "arn:aws:lambda:us-east-1:675556681054:function:aws-account-credits-tracking",
-                  "Id": "CreditThresholdLambdaFunction"
-              }
-          ]
+        "Description": "Event that triggers the credit threshold Lambda function",
+        "Name": "aws-account-credits-tracking-trigger",
+        "ScheduleExpression": {
+          "Ref": "LambdaEventTriggerCron"
+        },
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Arn": {
+              "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:aws-account-credits-tracking"
+            },
+            "Id": "CreditThresholdLambdaFunction"
+          }
+        ]
       }
     }
   }
