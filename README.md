@@ -1,7 +1,10 @@
 # aws-account-credits-tracker
 
-# Overview
+## Overview
 This CloudFormation template is used to build a stack that tracks the credit balance of an AWS account. The stack includes a Lambda function that queries the Cost Explorer API to retrieve the credit balance, sums up the credits used, and sends a notification if the credit balance falls below a user-defined threshold. The stack also includes a DynamoDB table for storing information about the credit balance, as well as an SNS topic and subscription for sending notifications when the credit balance falls below the utilization threshold.
+
+## Architecture
+![Architecture](.attachments/architecture.svg) 
 
 ## Parameters
 
