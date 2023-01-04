@@ -418,8 +418,6 @@ Resources:
               from botocore.exceptions import ClientError
 
               # Get the required environment variables
-              os.environ['AWS_CREDITS_NAME'] = 'TEST'
-              os.environ['AWS_CREDITS_TABLE_NAME'] = 'aws-credit-status'
               AWS_CREDITS_NAME = os.environ.get('AWS_CREDITS_NAME')
               AWS_CREDITS_TABLE_NAME = os.environ.get('AWS_CREDITS_TABLE_NAME')
 
