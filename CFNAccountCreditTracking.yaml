@@ -202,17 +202,14 @@ Resources:
               import urllib.request
               import boto3
               from botocore.exceptions import ClientError
-              import logging
 
 
               def lambda_handler(event, context):
-                  # Initialize logger
-                  logging.basicConfig(level=logging.INFO)
 
                   # Log some information about the event and context
-                  logging.info('Initializing DynamoDB table')
-                  logging.info(json.dumps(event))
-                  logging.info(context)
+                  print('Initializing DynamoDB table')
+                  print(json.dumps(event))
+                  print(context)
 
                   # Get the request type and response URL from the event
                   request_type = event['RequestType']
@@ -239,12 +236,12 @@ Resources:
                           # Get the DynamoDB client
                           ddb_client = boto3.client('dynamodb')
                           # Log the resource properties
-                          logging.info(properties['NameField'])
-                          logging.info(properties['EffectiveDate'])
-                          logging.info(properties['ExpiryDate'])
-                          logging.info(properties['CreditAmount'])
-                          logging.info(properties['AlertThreshold'])
-                          logging.info(properties['AlertNotificationTopic'])
+                          print(properties['NameField'])
+                          print(properties['EffectiveDate'])
+                          print(properties['ExpiryDate'])
+                          print(properties['CreditAmount'])
+                          print(properties['AlertThreshold'])
+                          print(properties['AlertNotificationTopic'])
 
                           # Put the item in the DynamoDB table
                           response = ddb_client.put_item(
@@ -258,7 +255,7 @@ Resources:
                                   'credit_notification_topic': {'S': properties['AlertNotificationTopic']}
                               }
                           )
-                          logging.info(response)
+                          print(response)
 
                       # Catch any errors that occur
                       except ClientError as e:
@@ -272,12 +269,12 @@ Resources:
                       # Convert the response data to JSON
                       json_response = json.dumps(responseData)
 
-                      logging.info('SENDING RESPONSE')
-                      logging.info(json_response)
+                      print('SENDING RESPONSE')
+                      print(json_response)
 
                       # Send the response
                       try:
-                          logging.info('Response URL = ' + response_url)
+                          print('Response URL = ' + response_url)
                           response = urllib.request.urlopen(urllib.request.Request(
                               url=response_url,
                               data=bytes(json_response, 'utf-8'),
@@ -286,7 +283,7 @@ Resources:
                               timeout=5
                           )
                       except Exception as e:
-                          logging.info('send failed executing urllib.request: {e}')
+                          print('send failed executing urllib.request: {e}')
 
                   # If the request type is 'Update', then update the DynamoDB table
                   elif request_type == 'Update':
@@ -302,12 +299,12 @@ Resources:
                           ddb_client = boto3.client('dynamodb')
 
                           # Log the resource properties
-                          logging.info(properties['NameField'])
-                          logging.info(properties['EffectiveDate'])
-                          logging.info(properties['ExpiryDate'])
-                          logging.info(properties['CreditAmount'])
-                          logging.info(properties['AlertThreshold'])
-                          logging.info(properties['AlertNotificationTopic'])
+                          print(properties['NameField'])
+                          print(properties['EffectiveDate'])
+                          print(properties['ExpiryDate'])
+                          print(properties['CreditAmount'])
+                          print(properties['AlertThreshold'])
+                          print(properties['AlertNotificationTopic'])
 
                           # Put the item in the DynamoDB table
                           response = ddb_client.put_item(
@@ -321,7 +318,7 @@ Resources:
                                   'credit_notification_topic': {'S': properties['AlertNotificationTopic']}
                               }
                           )
-                          logging.info(response)
+                          print(response)
                       except ClientError as e:
                           # Log the error
                           logging.error(e)
@@ -412,7 +409,6 @@ Resources:
               #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
               #SOFTWARE.
               import os
-              import logging
               import boto3
               from datetime import datetime
               from botocore.exceptions import ClientError
@@ -428,13 +424,10 @@ Resources:
               if not AWS_CREDITS_TABLE_NAME:
                   raise ValueError("Missing required environment variable 'AWS_CREDITS_TABLE_NAME'")
 
-              # Set up logging
-              logging.basicConfig(level=logging.INFO)
-
               class Credit:
 
                   def __init__(self, credit_name: str) -> None:
-                      logging.info('Building Credit from DynamoDB')
+                      print('Building Credit from DynamoDB')
                       self.ddb_client = boto3.client('dynamodb')
                       self.credit_start = ''
                       self.credit_expiry = ''
@@ -442,7 +435,7 @@ Resources:
                       self.credit_limit = 0
                       self.credit_notification_topic = ''
 
-                      logging.info(f'Credit Name: {credit_name}')
+                      print(f'Credit Name: {credit_name}')
                       try:
                           # Get the credit data from the DynamoDB table
                           response = self.ddb_client.get_item(
@@ -482,8 +475,8 @@ Resources:
 
                   account_id = boto3.client('sts').get_caller_identity().get('Account')
                   today = datetime.today().strftime('%Y-%m-%d')
-                  logging.info(f'Today: {today}')
-                  logging.info(f'Start time: {credit_table.credit_start}')
+                  print(f'Today: {today}')
+                  print(f'Start time: {credit_table.credit_start}')
                   response = cost_client.get_cost_and_usage(
                       TimePeriod={
                           'Start': credit_table.credit_start,
@@ -500,19 +493,19 @@ Resources:
                       Metrics=['UnblendedCost']
                   )
 
-                  logging.info(response)
+                  print(response)
 
                   for credit in response['ResultsByTime']:
                       total_cost += float(credit['Total']['UnblendedCost']['Amount'])
 
-                  logging.info(f'Total cost: {total_cost}')
+                  print(f'Total cost: {total_cost}')
                   credit_remaining = credit_table.credit_limit + total_cost
 
-                  logging.info(f'Credit threshold: {credit_table.credit_threshold}')
+                  print(f'Credit threshold: {credit_table.credit_threshold}')
                   utilization = total_cost / credit_table.credit_limit * -100.0
 
                   if credit_remaining < credit_table.credit_threshold:
-                      logging.info('Sending utilization alert')
+                      print('Sending utilization alert')
                       sns_client = boto3.client('sns')
 
                       response = sns_client.publish(
@@ -522,9 +515,9 @@ Resources:
                                   f"\n\nCredits remaining: {credit_remaining:.2f}"
                                   f"\n\nUtilization: {utilization:.2f}%"
                       )
-                      logging.info(f'SNS response: {response}')
+                      print(f'SNS response: {response}')
                   else:
-                      logging.info(f'Credit remaining: {credit_remaining}')
+                      print(f'Credit remaining: {credit_remaining}')
 
                   return {
                       'utilization': utilization,
