@@ -512,6 +512,7 @@ Resources:
                           TopicArn=credit_table.credit_notification_topic,
                           Subject='AWS Account Credits Utilization Alert. Please see information below:',
                           Message=f'Account ID: {account_id}'
+                                  f'Credit Name: {AWS_CREDITS_NAME}'
                                   f"\n\nCredits remaining: {credit_remaining:.2f}"
                                   f"\n\nUtilization: {utilization:.2f}%"
                       )
